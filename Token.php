@@ -1,5 +1,9 @@
 <?php
 
+
+/*
+ * Представляет из себя один встроенный токен PHP
+ */
 class Token
 {
     //ID из массива от функции token_get_all
@@ -31,6 +35,9 @@ class Token
     //Заполнена ли переменная данными от пользователя
     public $is_user_defined;
 
+    //Получена ли строка от конкатенации
+    public $is_concatenaed;
+
     public function __construct($token)
     {
         $this->id = $token[0];
@@ -53,17 +60,20 @@ class Token
         //Формат хранения ('индекс вложенности', 'строка значения индекса')
         $this->arr_indexes = array();
 
-        $this->is_var = $this->name === "T_VARIABLE";
+        $this->is_var = ($this->name === "T_VARIABLE");
 
         $this->is_ignore = $this->is_ignore();
 
+        $this->is_user_defined = false;
 
+        $this->has_changed = false;
 
+        $this->is_concatenaed = false;
     }
 
     public function is_ignore()
     {
-        return in_array($this->name, Tokens_Types::$IGNORE);
+        return in_array($this->id, Tokens_Types::$IGNORE);
     }
 
 

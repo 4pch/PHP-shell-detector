@@ -1,6 +1,5 @@
 <?php
 
-
 class Sources
 {
     //Источники, которые заполняются данными от пользователя
@@ -12,41 +11,41 @@ class Sources
         '$_COOKIE',
         '$_FILES'
     );
+
+    public static $user_defined_functions = array (
+        "apache_request_headers",
+        "getallheaders",
+
+    );
+
 }
 
 class VulnFunctions
 {
     public static $PVF = array (
-        'assert',
-        'eval',
-        'create_function',
-        ##########################
-        'mb_ereg_replace', //with e modifier
-        'mb_eregi_replace', //with e modifier
-        "mb_eregi",
-        //all pcre functions
-        ##############################
-        'preg_filter',
-        'preg_replace',
-        'preg_replace_callback',
-        'exec',
-        'system',
-        'passthru',
-        'shell_exec',
-        #backticks
-        'popen',
-        'proc_open',
-        'pcntl_exec',
-        #so-so
-        'call_user_func',
-        'call_user_func_array',
-        #class ReflectionFunction
-        'invoke',
-        'invokeArgs',
-        "ob_start"
+        'assert' => array( 2, 1),
+        'eval'=> array(1, 1),
+        'exec' => array(3, 1),
+        'system' => array (2, 1),
+        'passthru' => array(2, 1),
+        'shell_exec' => array (1, 1),
+        'backticks' => array (1 ,1),
+        'popen' => array (2, 1),
+        'proc_open' => array(6, 1),
+        'pcntl_exec' => array(3, 1),
     );
 
-    public static $callbackable = array (
+    public static $pcre_functions = array (
+        'mb_ereg_replace' => array(4, 1),
+        'mb_eregi_replace'=> array(4, 1),
+        "mb_eregi"=> array(3, 1),
+    );
+
+
+
+    public static $callbackable_almost = array (
+        'preg_replace_callback',
+        "array_walk",
         "ArrayIterator::uasort",
         "ArrayIterator::uksort",
         "ArrayObject::uasort",
@@ -125,12 +124,26 @@ class VulnFunctions
         "readline_callback_handler_install",
         "readline_callback_handler_remove",
         "readline_callback_read_char",
-
-
-
-
         "register_shutdown_function",
 
+    );
+
+    public static $callbackable = array (
+        "array_diff_uassoc" => array (0, 0),
+        "array_diff_ukey" => array (0, 0),
+        "array_intersect_uassoc" => array(0, 0),
+        "array_intersect_ukey" => array(0, 0),
+        "array_udiff_uassoc" => array(0, 0), // not all
+        "array_udiff" => array(0, 0),
+        "array_uintersect" => array(0, 0),
+        "array_uintersect_uassoc" => array(0, 0), // not all
+        "array_walk_recursive" => array(3, 2),
+        "call_user_func" => array(0, 1),
+        "call_user_func_array" => array(2, 1),
+        "header_register_callback" => array(1, 1),
+        "mb_ereg_replace_callback" => array (4, 2),
+        "preg_replace_callback" => array(6, 2),
+        "preg_replace_callback_array" => array(5, 2),
     );
 
     public static $coding_decoding = array(
@@ -144,12 +157,17 @@ class VulnFunctions
         "imap_base64",
         "inflate_add",
         "IntlChar::chr",
-
     );
 
     public static $suspicious = array(
         "create_function",
         "function_exists",
+        "getenv",
+        'call_user_func',
+        'call_user_func_array',
+        'invoke',
+        'invokeArgs',
+        "ob_start",
+        'create_function',
     );
-
 }
