@@ -1,15 +1,12 @@
 <?php
 
-include 'tokenizer.php';
-include 'analyzer.php';
 include 'DirectoryTraverser.php';
 
 //error_reporting(0);
 //set_error_handler('handle_error', E_ALL);
 
 
-
-function handle_error($errno, $errmsg, $filename, $linenum, $vars)
+/*function handle_error($errno, $errmsg, $filename, $linenum, $vars)
 {
     global $error_list;
     $errors = array(
@@ -32,151 +29,35 @@ function handle_error($errno, $errmsg, $filename, $linenum, $vars)
     {
         $error_list[] = "Error " . $errmsg . " in file: " . $filename . " in line: " . $linenum . "<br>";
     }
-}
+}*/
 
 
 set_time_limit(300);
 
-$dir = "S:\\Учеба\\Диплом\\shells-clear\\Shells\\test";
+//$path = $argv[1];
 
-//$dir = "S:\\Учеба\\Диплом\\Shells\\GFS_web-shell_ver_3.1.7_-_PRiV8";
+$path = "S:\\Учеба\\Диплом\\shells-clear\\Shells\\webshell-sample-master\\php_3";
+//$path = "S:\\Учеба\\Диплом\\shells-clear\\Shells\\test";
 
-/*
-function dir_traverse($dirname)
+//$path = "S:\\Учеба\\Диплом\\clear";
+
+//$path = "S:\\Учеба\\Диплом\\composer-master";
+
+
+
+if(is_dir($path))
 {
+    $traverser = new DirectoryTraverser($path);
 
-    global $not_detected;
+    $traverser->traverse();
 
-    global $ignored;
-
-    if ($directory = opendir($dirname))
-    {
-        echo "Dir: " . $dirname . "<br>";
-        echo "####################################################################################" . "<br>";
-
-        while (($filename = readdir($directory)) !== false)
-        {
-            if(is_dir($dirname . "\\" . $filename))
-            {
-                if ($filename == "." || $filename == "..")
-                {
-                    continue;
-                }
-                else
-                {
-                    dir_traverse($dirname . "\\" . $filename);
-                }
-
-            }
-            if (is_file($dirname . "\\" . $filename))
-            {
-                $ext = pathinfo($dirname . "\\" . $filename,  PATHINFO_EXTENSION);
-                if($ext != "php")
-                {
-                    $ignored[] = $dirname . "\\" . $filename;
-                    continue;
-                }
-
-                $php_command = "C: && cd C:\\xampp\\php && php.exe -l ". $dirname . "\\" . $filename;
-
-                $output = array();
-
-                $ret_code = 0;
-
-                exec($php_command , $output, $ret_code);
-
-                $found = false;
-
-                foreach ($output as $line)
-                {
-                    if(($res = stripos($line, "No syntax errors detected in")) !== false)
-                    {
-                        $found = true;
-                    }
-                }
-
-                if($found == false)
-                {
-                    $ignored[] = $dirname . "\\" . $filename;
-                    continue;
-                }
-
-                echo "File: " . $filename . "<br>";
-                echo "-------------------------------------------------" . "<br>" . "<br>";
-
-                $code = file_get_contents($dirname . "\\" . $filename);
-
-                $code = preg_replace("/<\?(?!php|=)/", "<?php ", $code);
-
-                $tokens = token_get_all($code);
-
-                $tokens = normalize_tokens($tokens);
-
-                //Дописываем в конец закрывающий php тег
-                $tokens = add_close_tag($tokens);
-
-                $tokens = prepare_tokens($tokens);
-
-                $tokens = array_packing($tokens);
-
-                $tokens = markup_user_defined_variables($tokens);
-
-                $result = analyze($tokens);
-
-                if(!$result)
-                {
-                    $not_detected[] = $dirname . "\\" . $filename;
-                }
-
-                //echo "####################################################################################" . "<br>";
-            }
-        }
-    }
+    $traverser->print_statistics();
 }
 
-$error_list = array();
-
-$not_detected = array();
-
-$ignored = array();
-
-try
+if(is_file($path))
 {
-    dir_traverse($dir);
+    $filer = new Filer($path);
+
+    $filer->analyze_file();
 }
-catch(Exception $e)
-{
-    echo 'Выброшено исключение: ',  $e->getMessage(), "<br>";
-}
-
-echo "Not detected: " . "<br>";
-
-foreach($not_detected as $filename)
-{
-    echo $filename . "<br>";
-}
-
-echo "Ignored: " . "<br>";
-
-foreach($ignored as $filename)
-{
-    echo $filename . "<br>";
-}
-
-echo "Errors: " . "<br>";
-
-foreach($error_list as $err)
-{
-    echo $err . "<br>";
-}
-
-*/
-
-
-$traverser = new DirectoryTraverser($dir);
-
-$traverser->traverse();
-
-$traverser->print_statistics();
-
 

@@ -1,5 +1,9 @@
 <?php
 
+include 'Reporter.php';
+include 'Analyzer.php';
+include 'Tokenizer.php';
+
 define("MAX_LINE_LENGTH", 200);
 define("INSANE_LINE_LENGTH", 2000);
 define("MAX_TAB_COUNT", 30);
@@ -12,21 +16,43 @@ class Filer
 
     public $tokens;
 
+    private $reporter;
+
+    public $tokenizer;
+
+    public $analyzer;
+
+    public $code;
+
     public function __construct($full_file_path)
     {
         $this->full_file_path = $full_file_path;
 
-        $this->lines_count = count(file($full_file_path));
+        $this->code = file_get_contents($this->full_file_path);
+
+        $this->lines_count = count(file($this->full_file_path));
+
+        echo "File: " . $this->full_file_path . " Lines: " , $this->lines_count . "<br>";
+        echo "-------------------------------------------------" . "<br>" . "<br>";
+
+
+        $this->reporter = new Reporter($this->full_file_path);
+
+        $this->tokenizer = new Tokenizer($this->code);
+
+        $this->tokens = $this->tokenizer->tokens;
+
+        $this->analyzer = new Analyzer($this->reporter, $this->tokens);
     }
 
     public function analyze_file()
     {
-        echo "File: " . $this->full_file_path . " Lines: " , $this->lines_count . "<br>";
-        echo "-------------------------------------------------" . "<br>" . "<br>";
 
         $lines_result = $this->analyze_file_lines();
 
         $code_result = $this->analyze_file_code();
+
+        $this->reporter->display_signs();
 
         return $lines_result || $code_result;
     }
@@ -70,38 +96,8 @@ class Filer
         return $for_return;
     }
 
-
     private function analyze_file_code()
     {
-        $code = file_get_contents($this->full_file_path);
-
-        //Открывающие теги <? заменяем на <?php, иначе неправильно разбивает на токены сам PHP
-        $code = preg_replace("/<\?(?!php|=)/", "<?php ", $code);
-
-        $this->tokens = token_get_all($code);
-
-        $this->tokens = normalize_tokens($this->tokens);
-
-        //Дописываем в конец закрывающий тег \?\>, иначе проблемы с разбиением на токены
-        $this->add_close_tag();
-
-        $this->tokens = prepare_tokens($this->tokens);
-
-        $this->tokens = array_packing($this->tokens);
-
-        $this->tokens = markup_user_defined_variables($this->tokens);
-
-        $result = analyze($this->tokens);
-
-        return $result;
-    }
-
-    private function add_close_tag()
-    {
-        if($this->tokens[count($this->tokens) - 1]->id != T_CLOSE_TAG)
-        {
-            $token = array(T_CLOSE_TAG, "?>", $this->tokens[count($this->tokens) - 1]->str_num);
-            $this->tokens[count($this->tokens)] = new Token($token);
-        }
+        return $this->analyzer->analyze();
     }
 }

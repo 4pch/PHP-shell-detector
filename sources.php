@@ -15,7 +15,18 @@ class Sources
     public static $user_defined_functions = array (
         "apache_request_headers",
         "getallheaders",
+        "http_get",
+        "getenv",
 
+    );
+
+    public static $string_constructing = array(
+        "T_CONSTANT_ENCAPSED_STRING",
+        "T_VARIABLE",
+        "T_LNUMBER",
+        "T_PLUS",
+        "T_MULTIPLE",
+        "T_CONCAT_OP"
     );
 
 }
@@ -33,15 +44,39 @@ class VulnFunctions
         'popen' => array (2, 1),
         'proc_open' => array(6, 1),
         'pcntl_exec' => array(3, 1),
+        "backtick" => array(1,1),
     );
 
+    //
     public static $pcre_functions = array (
-        'mb_ereg_replace' => array(4, 1),
-        'mb_eregi_replace'=> array(4, 1),
+        'mb_ereg_replace' => array(4, 1, 4),
         "mb_eregi"=> array(3, 1),
+        "preg_replace"=>array(5, 1),
+        "mb_eregi_replace"=>array(4, 1, 4),
+        "preg_filter "=>array(5,1),
+    );
+
+    public static $file_read_functions = array(
+      "fopen" => array (4, 1),
     );
 
 
+    public  static $files_functions = array(
+      "fopen",
+      "fpassthru"
+    );
+
+    public static $file_uploading = array(
+        "copy" => 0,
+        "move_uploaded_file" => 0,
+    );
+
+    public static $file_write_functions = array(
+        //"fopen" => array (4,1),
+        "fwrite" => array(3, 2),
+        "fputs" => array(3, 2),
+        "file_put_contents"=>array(4, 1),
+    );
 
     public static $callbackable_almost = array (
         'preg_replace_callback',
@@ -128,6 +163,7 @@ class VulnFunctions
 
     );
 
+    //(всего, колбек)
     public static $callbackable = array (
         "array_diff_uassoc" => array (0, 0),
         "array_diff_ukey" => array (0, 0),
@@ -144,6 +180,35 @@ class VulnFunctions
         "mb_ereg_replace_callback" => array (4, 2),
         "preg_replace_callback" => array(6, 2),
         "preg_replace_callback_array" => array(5, 2),
+        "array_filter" => array(3,2),
+        "array_map"=> array(0,1),
+        "array_walk"=>array(3,2),
+        "array_walk_recursive"=>array(3,2),
+        "forward_static_call_array"=>array(2,1),
+        "array_udiff_assoc"=>array(0,0),
+        "array_intersect_uassoc"=>array(0,0),
+        "array_intersect_ukey"=>array(0,0),
+        "register_tick_function "=>array(0,1),
+        ////////////////////////////////
+        "fillter_var" => array(1,3),
+        "yaml_parse" => array(0, 0),
+        "uasort"=>array(2,2),
+        "ob_start"=>array(3,1),
+        "register_shutdown_function"=>array(0, 1),
+        "register_tick_function" => array(0, 1),
+        "assert_options" => array(2,2),
+
+
+    );
+
+    public static $db_functions = array (
+        "mysqli_select_db" => array (1, 1),
+        "mysql_connect" => array(2, 2),
+        "mysqli_connect" => array(5,1),
+    );
+
+    public static $var_filters = array(
+      "fillter_var" => array(1,3),
     );
 
     public static $coding_decoding = array(
@@ -157,6 +222,7 @@ class VulnFunctions
         "imap_base64",
         "inflate_add",
         "IntlChar::chr",
+        "pack",
     );
 
     public static $suspicious = array(

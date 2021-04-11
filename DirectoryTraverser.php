@@ -2,6 +2,8 @@
 
 include 'Filer.php';
 
+//todo: сокетное взаимодействие
+
 class DirectoryTraverser
 {
     public $dirpath;
@@ -30,6 +32,8 @@ class DirectoryTraverser
 
         $this->malware_files = array();
 
+        $this->scanned_files = 0;
+
         $this->total_lines_scanned = 0;
     }
 
@@ -53,12 +57,14 @@ class DirectoryTraverser
                 {
                     continue;
                 }
+                //Если встречаем подпапку, то запускаем аналогичный процесс для нее
                 else
                 {
                     $traverser = new DirectoryTraverser($this->dirpath . "\\" . $entity_name);
 
                     $traverser->traverse();
 
+                    //и собираем ее статистику
                     $this->concatenate_statistic($traverser);
                 }
 
@@ -68,12 +74,14 @@ class DirectoryTraverser
             {
                 $ext = pathinfo($this->dirpath . "\\" . $entity_name,  PATHINFO_EXTENSION);
 
+                //todo: это нужно заменить и проверять еще txt и фотки
                 if($ext != "php")
                 {
                     $this->ignored_files[] = $this->dirpath . "\\" . $entity_name;
                     continue;
                 }
 
+                //Проверяем является ли файл правильным по ситнаксису
                 if(!$this->is_php_file_valid($this->dirpath . "\\" . $entity_name))
                 {
                     $this->invalid_php[] = $this->dirpath . "\\" . $entity_name;
@@ -86,10 +94,12 @@ class DirectoryTraverser
 
                 $result = $filer->analyze_file();
 
+                //Если обнаружены признаки шеллов
                 if($result)
                 {
                     $this->malware_files[] = $this->dirpath . "\\" . $entity_name;
                 }
+                //Если не обнаружены признаки шеллов
                 else
                 {
                     $this->clear_files[] = $this->dirpath . "\\" . $entity_name;
@@ -103,7 +113,7 @@ class DirectoryTraverser
 
     public function is_php_file_valid($full_file_path)
     {
-        $php_command = "C: && cd C:\\xampp\\php && php.exe -l ". $full_file_path;
+        $php_command = "C: && cd C:\\xampp\\php && php.exe -l \"$full_file_path\"";
 
         $output = array();
 
@@ -113,6 +123,7 @@ class DirectoryTraverser
 
         $found = false;
 
+        //Если синтаксис верен, то в выводе команды php -l будет содержаться эта фраза
         foreach ($output as $line)
         {
             if(($res = stripos($line, "No syntax errors detected in")) !== false)
@@ -170,6 +181,7 @@ class DirectoryTraverser
 
         foreach ($this->clear_files as $filename)
         {
+            copy($filename, "S:\\Учеба\\Диплом\\clear\\" . pathinfo($filename, PATHINFO_BASENAME));
             echo $filename . "<br>";
         }
 

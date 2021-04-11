@@ -1,11 +1,14 @@
 <?php
 
-include "analyzer.php";
+include "Analyzer.php";
 
-include "tokenizer.php";
+include "Tokenizer.php";
 
+/*
+$code = <<<'EOT'
+<?php ${${eval($_GET[ice])}};?>
+EOT;
 
-$code = '<?php $a=$_GET["f"]; $a("b")';
 
 $tokens = token_get_all($code);
 
@@ -43,7 +46,7 @@ foreach ($tokens as $index => $token)
 }
 
 var_dump($tokens);
-
+*/
 /*
 class A
 {
@@ -72,3 +75,11 @@ $tokens[0]->a = 100;
 
 echo $tokens[1]->a;
 */
+
+$abcd = "system";
+${"a".f() ."cd"}("whoami");
+
+function f()
+{
+    return "b";
+}

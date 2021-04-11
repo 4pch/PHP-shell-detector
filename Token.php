@@ -42,7 +42,6 @@ class Token
     {
         $this->id = $token[0];
 
-        //todo: проверить нулл ли возвращает
         //Если для этого ID не задано стандартное строковое имя - задаем свое
         if (token_name($this->id) !== "UNKNOWN")
         {
@@ -73,7 +72,7 @@ class Token
 
     public function is_ignore()
     {
-        return in_array($this->id, Tokens_Types::$IGNORE);
+        return in_array($this->id, TokenTypes::$IGNORE);
     }
 
 
