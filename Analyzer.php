@@ -6,8 +6,6 @@ include 'ShellSign.php';
 
 include 'Stringer.php';
 
-//todo: в коллбек параметрах, если параметр строка, то проверять ее на плохую функцию, иначе много ложных ошибок
-//todo: разобраться с разделителями в регулярках
 
 define("UD_VARIABLE_CALL" , 500);
 define("VARIABLE_CALL" , 501);
@@ -33,12 +31,8 @@ define("FILE_FUNC_CALL_WITH_UDF", 513);
 define("FILE_FUNC_CALL_WITH_UDV", 514);
 define("FILE_READ_CALL_WITH_UDV", 515);
 define("DB_CALL_WITH_UDF", 516);
+define("BAD_STRING_CALLBACK", 517);
 
-
-//todo: вызов метода invoke и invokeArgs
-//todo: COM usage
-//todo: include
-//todo: ReflectionFunction
 
 function reverse_concatenation($tokens)
 {
@@ -64,9 +58,7 @@ function reverse_concatenation($tokens)
     return $final_string;
 }
 
-/*
- * Ищет признаки шеллов в массиве токенов
- */
+
 class Analyzer
 {
     public $tokens;
@@ -97,60 +89,16 @@ class Analyzer
         {
             $type = 0;
 
-            if($this->tokens[$i]->is_var && $this->tokens[$i + 1]->name == "T_PAR_OPEN" ||
-                $this->tokens[$i]->name == "T_EVAL" && $this->tokens[$i + 1]->name == "T_PAR_OPEN" ||
-                $this->tokens[$i]->name == "T_STRING" && $this->tokens[$i + 1]->name == "T_PAR_OPEN"
-
-            )
+            if(    $this->tokens[$i]->is_var && $this->tokens[$i + 1]->name == "T_PAR_OPEN"
+                || $this->tokens[$i]->name == "T_EVAL" && $this->tokens[$i + 1]->name == "T_PAR_OPEN"
+                || $this->tokens[$i]->name == "T_STRING" && $this->tokens[$i + 1]->name == "T_PAR_OPEN")
             {
-                //Ищем закрывающую скобку
-                $opened_par = 1;
-
-                $offset = 2;
-
-                $args = array();
-
-                $arg_num = 1;
-
-                $args[$arg_num] = array();
-
-                while ($opened_par != 0)
-                {
-                    if (!isset($this->tokens[$i + $offset]))
-                    {
-                        echo "Invalid syntax in string: " . $this->tokens[$i]->str_num . "<br>";
-                        break;
-                    }
-                    if ($this->tokens[$i + $offset]->name == "T_PAR_OPEN")
-                    {
-                        $args[$arg_num][] = $this->tokens[$i + $offset];
-                        ++$opened_par;
-                    }
-                    elseif ($this->tokens[$i + $offset]->name == "T_PAR_CLOSE")
-                    {
-                        if ($opened_par != 1)
-                        {
-                            $args[$arg_num][] = $this->tokens[$i + $offset];
-                        }
-                        --$opened_par;
-                    }
-                    elseif ($this->tokens[$i + $offset]->name == "T_COMMA" && $opened_par == 1)
-                    {
-                        ++$arg_num;
-                        $args[$arg_num] = array();
-                    }
-                    else
-                    {
-                        $args[$arg_num][] = $this->tokens[$i + $offset];
-                    }
-
-                    ++$offset;
-                }
+                $args = $this->get_function_parameters($i);
 
                 $to_return |= $this->check_function_call($this->tokens[$i], $args);
             }
 
-            //Если типо ${a}
+            // ${a}
             if($this->tokens[$i]->id == T_DOLLAR && $this->tokens[$i + 1]->id == T_CURLY_PAR_OPEN)
             {
                 if($this->tokens[$i + 2]->id == T_STRING || $this->tokens[$i + 2]->id == T_CONSTANT_ENCAPSED_STRING)
@@ -176,40 +124,6 @@ class Analyzer
         return $to_return;
     }
 
-    public function check_eval_call($function_token, $arguments)
-    {
-        $type = EVAL_CALL;
-        echo "EVAL call in line: " . $function_token->str_num . "<br>";
-
-        $sign = new ShellSign($function_token, $arguments, 0, $type);
-        $this->reporter->add_sign($sign);
-
-        return true;
-    }
-
-    public function check_variable_call($function_token, $arguments)
-    {
-        if ($function_token->is_user_defined)
-        {
-            $type = UD_VARIABLE_CALL;
-            echo "Call of user-defined variable in line:" . $function_token->str_num . "<br>";
-            $to_return = true;
-        }
-        else
-        {
-            $type = VARIABLE_CALL;
-            echo "Variable call in line: " . $function_token->str_num . "<br>";
-            $to_return = true;
-        }
-        if($type != 0)
-        {
-            $sign = new ShellSign($function_token, $arguments, 0, $type);
-            $this->reporter->add_sign($sign);
-        }
-
-        return $to_return;
-    }
-
     public function check_function_call($function_token, $arguments)
     {
         $to_return = false;
@@ -221,26 +135,44 @@ class Analyzer
             return $this->check_eval_call($function_token, $arguments);
         }
 
+        if($function_token->orig_str == "com")
+        {
+            $type = 100;
+
+            $sign = new ShellSign($function_token, $arguments, 0, $type);
+            $this->reporter->add_sign($sign);
+
+            return true;
+        }
+
+        if($function_token->orig_str == "ini_set")
+        {
+            return $this->check_ini_set($function_token, $arguments);
+        }
+
+        if($function_token->orig_str == "create_function")
+        {
+            //check with Stringer
+        }
+
         if($function_token->is_var)
         {
             return $this->check_variable_call($function_token, $arguments);
         }
 
-        //Функция - опасная PHP-функция (system, shell и тд)
         if(key_exists($function_token->orig_str, VulnFunctions::$PVF))
         {
             return $this->check_unwanted_function_call($function_token, $arguments);
         }
 
         //Функция для работы с регулярными выражениями
-        //todo: другие способы указывать модификаторы
         elseif(key_exists($function_token->orig_str, VulnFunctions::$pcre_functions))
         {
             return $this->check_pcre_function_call($function_token, $arguments);
         }
 
         //Функция, поддерживающая callback-параметр
-        //todo: добавить объявление через array( => 'badfunc)
+        //todo: добавить объявление через array( => 'badfunc')
         elseif(key_exists($function_token->orig_str, VulnFunctions::$callbackable))
         {
             return $this->check_function_with_callback_call($function_token, $arguments);
@@ -252,7 +184,7 @@ class Analyzer
             return $this->check_dbms_function_call($function_token, $arguments);
         }
 
-        //Загрузка файлов, по другому никак, поскольку простого вызова этой функции хватит, чтобы загрузить новый шелл
+        //Загрузка файлов
         elseif(key_exists($function_token->orig_str, VulnFunctions::$file_uploading))
         {
             return $this->check_file_uploading_function_call($function_token, $arguments);
@@ -271,9 +203,42 @@ class Analyzer
         return $to_return;
     }
 
+    public function check_eval_call($function_token, $arguments)
+    {
+        $type = EVAL_CALL;
+        echo "EVAL call in line: " . $function_token->str_num . "<br>";
+
+        $sign = new ShellSign($function_token, $arguments, 0, $type);
+        $this->reporter->add_sign($sign);
+
+        return true;
+    }
+
+    public function check_variable_call($function_token, $arguments)
+    {
+        if ($function_token->is_user_defined)
+        {
+            $type = UD_VARIABLE_CALL;
+            echo "Call of user-defined variable in line:" . $function_token->str_num . "<br>";
+        }
+        else
+        {
+            $type = VARIABLE_CALL;
+            echo "Variable call in line: " . $function_token->str_num . "<br>";
+        }
+        if($type != 0)
+        {
+            $sign = new ShellSign($function_token, $arguments, 0, $type);
+            $this->reporter->add_sign($sign);
+
+            return true;
+        }
+
+        return false;
+    }
+
     public function check_unwanted_function_call($function_token, $arguments)
     {
-        //Тип опасности. Нужен, чтобы вывести соответствующее предупреждение
         $type = 0;
 
         //В этом списке хранятся массивы формата имя функции => (кол-во аргументов, уязвимый аргуметн)
@@ -294,12 +259,7 @@ class Analyzer
             }
         }
 
-        /*
-         * Теперь мы знаем, какой параметр нужно проверять - $vuln_arg_number
-         * Им может быть один токен system($_GET[1])
-         * или массив токенов system(boo().foo().$a)
-         * Эти варианты нужно рассмотреть отдельно
-        */
+        $vuln_arg_number = $this->get_function_parameters_list($function_token->orig_str, "PVF");
 
 
         //Если аргумент - переменная
@@ -310,15 +270,11 @@ class Analyzer
                 || in_array($arguments[$vuln_arg_number][0]->orig_str, Sources::$user_defined))
             {
                 $type = PVF_CALL_WITH_UDV;
-                //echo "PVF call with user-defined variable in line: " . $function_token->str_num . "<br>";
-                $to_return = true;
             }
             else
             {
                 //В любом случае отмечаем это как признак
                 $type = PVF_CALL;
-                //echo "PVF call in line: " . $function_token->str_num . "<br>";
-                $to_return = true;
             }
         }
 
@@ -330,23 +286,17 @@ class Analyzer
             if(in_array($arguments[$vuln_arg_number][0]->orig_str, Sources::$user_defined_functions))
             {
                 $type = PVF_CALL_WITH_UDF;
-                //echo "PVF call with user-defined by function in line: " . $function_token->str_num . "<br>";
-                $to_return = true;
             }
             else
             {
                 //В любом случае отмечаем это как признак, даже если любая другая функция
                 $type = PVF_CALL;
-                //echo "PVF call in line: " . $function_token->str_num . "<br>";
-                $to_return = true;
             }
         }
         else
         {
             //В любом случае отмечаем это как признак, даже если аргумент - не вызов функции
             $type = PVF_CALL;
-            //echo "PVF call in line: " . $function_token->str_num . "<br>";
-            $to_return = true;
         }
 
         //формируем признак
@@ -355,17 +305,15 @@ class Analyzer
 
             //и записываем
             $this->reporter->add_sign($sign);
+
+            return true;
         }
 
-        return $to_return;
+        return false;
     }
 
     public function check_pcre_function_call($function_token, $arguments)
     {
-
-        $to_return = false;
-
-        //Тип опасности. Нужен, чтобы вывести соответствующее предупреждение
         $type = 0;
 
         /*
@@ -405,18 +353,12 @@ class Analyzer
                     if(stripos($arguments[$modifier_param][0]->orig_str, 'e') !== false)
                     {
                         $type = PCRE_WITH_E_BY_SPEC_ARG;
-                        //echo "PCRE function with e modifier by special argument called in line " . $function_token->str_num . "<br>";
-                        $to_return = true;
-                        //return $to_return;
-
                     }
                 }
                 //Если они заданы не одной строкой - это подозрительно
                 else
                 {
                     $type = PCRE_STRANGE;
-                    //echo "PCRE function with strange called in line " . $function_token->str_num . "<br>";
-                    $to_return = true;
                 }
             }
         }
@@ -432,8 +374,6 @@ class Analyzer
 
             $matches = array();
 
-            //todo: добавить всякий бред в модификаторах, типо \х65, конкатенаций и тд
-
             //регулярка забирает, все между // (или ||) - в первый карман т.е. сам шаблон, а во второй - модификаторы
             preg_match("/[\/|](.*)[\/|](.*)/i", $pattern_string, $matches);
 
@@ -446,8 +386,6 @@ class Analyzer
                 if (strpos($modifiers, 'e') !== false)
                 {
                     $type = PCRE_WITH_E;
-                    //echo "PCRE function with e modifier called in line " . $function_token->str_num . "<br>";
-                    $to_return = true;
                 }
             }
         }
@@ -455,36 +393,25 @@ class Analyzer
         else
         {
             $type = PCRE_STRANGE;
-            //echo "PCRE function with strange called in line " . $function_token->str_num . "<br>";
-            $to_return = true;
-            return $to_return;
         }
         if($type != 0)
-        {//Формируем и запоминаем признак
-        $sign = new ShellSign($function_token, $arguments, $pattern_arg_number, $type);
+        {
+            //Формируем признак
+            $sign = new ShellSign($function_token, $arguments, $pattern_arg_number, $type);
 
-        $this->reporter->add_sign($sign);
+            $this->reporter->add_sign($sign);
+
+            return true;
         }
 
-        return $to_return;
+        return false;
     }
 
     public function check_function_with_callback_call($function_token, $arguments)
     {
-        //Тип
         $type = 0;
 
-        $to_return = false;
-
-        /*
-         * В этом случае нужно проверить что из себя представляет callback-параметр этой функции
-         * В массиве VulnFunctions::$callbackable лежит массив имя_функции => (кол-во параметров, callback-параметр),
-         * Если кол-во параметров равно 0, значит их переменное количество
-         * Если callback-параметр равен 0, значит он последний из переменного числа параметров
-        */
-
         $function_pattern = VulnFunctions::$callbackable[$function_token->orig_str];
-
 
         //если конечное число аргументов
         if ($function_pattern[0] != 0)
@@ -533,19 +460,16 @@ class Analyzer
                     if ($arguments[$callback_arg_number][0]->is_user_defined)
                     {
                         $type = UD_CALLBACK_PARAM;
-                        $to_return = true;
                     }
 
                     //или она конкатенирована
                     if ($arguments[$callback_arg_number][0]->is_concateneted)
                     {
                         $type = CONCAT_CALLBACK_PARAM;
-                        $to_return = true;
                     }
                     else
                     {
                         $type = VARIABLE_AS_CALLBACK;
-                        $to_return = true;
                     }
 
                 }
@@ -553,16 +477,19 @@ class Analyzer
                 //коллбек - строка (string)
                 if ($arguments[$callback_arg_number][0]->name == "T_CONSTANT_ENCAPSED_STRING")
                 {
-                    $type = STRING_CALLBACK;
-                    //todo: проверка по белому словарю
-                    $to_return = true;
+                    if(key_exists($arguments[$callback_arg_number][0]->name, VulnFunctions::$PVF))
+                    {
+                        $type = BAD_STRING_CALLBACK;
+                    }
+                    else
+                    {
+                        $type = STRING_CALLBACK;
+                    }
                 }
 
-                //коллбек - строка-название в PHP (passthru, system и тд)
                 if ($arguments[$callback_arg_number][0]->name == "T_STRING")
                 {
                     $type = PHP_STRING_CALLBACK;
-                    $to_return = true;
                 }
             }
             /*
@@ -571,7 +498,6 @@ class Analyzer
              */
             else
             {
-                //todo: если коллбек есть $a = bad_func()
 
                 //если в начале коллбека вызывается функция
                 if ($arguments[$callback_arg_number][0]->name == "T_STRING")
@@ -580,46 +506,38 @@ class Analyzer
                     if (in_array($arguments[$callback_arg_number][0]->orig_str, VulnFunctions::$coding_decoding))
                     {
                         $type = BAD_FUNC_CALL_CALLBACK;
-                        //echo "String callback with bad func call call in line: " . $function_token->str_num . "<br>";
-                        $to_return = true;
                     }
 
                     $type = FUNC_CALL_CALLBACK;
-                    //echo "String callback with bad func call call in line: " . $function_token->str_num . "<br>";
-                    $to_return = true;
                 }
 
                 //Если колбек конкатенируется из строк, переменных и чисел
                 if($this->check_for_construct($arguments[$callback_arg_number]))
                 {
                     $type = CONSTRUCT_CALLBACK;
-                    //echo "Callback parameter is multi concatenated " . $function_token->str_num . "<br>";
-                    $to_return = true;
                 }
             }
 
             //В любом случае отмечаем как подозрительный параметр
             $type = CALLBACK_NOT_WITH_LAMBDA;
             echo "Callback parameter defined not with lambda function: " . $function_token->str_num . "<br>";
-            $to_return = true;
 
         }
         if($type != 0) {
             $sign = new ShellSign($function_token, $arguments, $callback_arg_number, $type);
             $this->reporter->add_sign($sign);
+
+            return true;
         }
-        return $to_return;
+        return false;
 
 
     }
 
     public function check_dbms_function_call($function_token, $arguments)
     {
-        //Тип опасности. Нужен, чтобы вывести соответствующее предупреждение
         $type = 0;
-        $to_return = false;
 
-        //В этом списке хранятся массивы формата имя функции => (кол-во аргументов, уязвимый аргуметн)
         $function_pattern = VulnFunctions::$db_functions[$function_token->orig_str];
 
         // Ноль - указатель на переменное число параметров функции
@@ -645,15 +563,11 @@ class Analyzer
                 || in_array($arguments[$vuln_arg_number][0]->orig_str, Sources::$user_defined))
             {
                 $type = PVF_CALL_WITH_UDV;
-                //echo "PVF call with user-defined variable in line: " . $function_token->str_num . "<br>";
-                $to_return = true;
             }
             else
             {
                 //В любом случае отмечаем это как признак
                 $type = PVF_CALL;
-                //echo "PVF call in line: " . $function_token->str_num . "<br>";
-                $to_return = true;
             }
         }
 
@@ -665,21 +579,20 @@ class Analyzer
             if(in_array($arguments[$vuln_arg_number][0]->orig_str, Sources::$user_defined_functions))
             {
                 $type = DB_CALL_WITH_UDF;
-                //echo "PVF call with user-defined by function in line: " . $function_token->str_num . "<br>";
-                $to_return = true;
             }
 
         }
 
-        //формируем признак
         if($type != 0) {
             $sign = new ShellSign($function_token, $arguments, $vuln_arg_number, $type);
 
             //и записываем
             $this->reporter->add_sign($sign);
+
+            return true;
         }
 
-        return $to_return;
+        return false;
 
     }
 
@@ -687,34 +600,32 @@ class Analyzer
     {
         $type = 0;
 
-        $to_return = false;
 
         if($function_token->orig_str == "move_uploaded_file")
         {
             $type = 10;
-            $to_return = true;
         }
 
         if($function_token->orig_str == "copy" && $arguments[1][0]->orig_str == '$_FILES')
         {
             $type = 10;
-            $to_return = true;
         }
         if($type)
         {
             $sign = new ShellSign($function_token, "", 0, $type);
 
             $this->reporter->add_sign($sign);
+
+            return true;
         }
 
-        return $to_return;
+        return false;
     }
 
     public function check_for_construct($tokens)
     {
         foreach ($tokens as $token)
         {
-            //добавить соответсвтующие функции chr и тд
             if(!in_array($token->name, Sources::$string_constructing))
             {
                 return false;
@@ -733,33 +644,50 @@ class Analyzer
             //Если переменной передается какое-то значение
             if($this->tokens[$i]->is_var && in_array($this->tokens[$i + 1]->id, TokenTypes::$T_EQUALS))
             {
-                //Проверка на юзер дефайнд
-                if (in_array($this->tokens[$i + 2]->orig_str, Sources::$user_defined))
+                /*
+                 * Определяем токены, которые описывают присваемое переменной значение
+                 */
+                for($j = 1; ;++$j)
+                {
+                    $opened_par = 0;
+                    //Запоминаем открытые скобки
+                    if($this->tokens[$i + $j]->id == T_PAR_OPEN)
+                    {
+                        $opened_par += 1;
+                    }
+                    if($this->tokens[$i + $j]->id == T_PAR_CLOSE)
+                    {
+                        $opened_par -= 1;
+                    }
+                    //Если встерчаем точку с запятой, то этот список кончился в любом случае
+                    if($this->tokens[$i + $j]->id == T_SEMICOLON)
+                    {
+                        break;
+                    }
+                    //Если встречаем запятую, то список закончился только если нет открытых скобок, иначе это перечисление каких-то переменных
+                    if($this->tokens[$i + $j]->id == T_SEMICOLON)
+                    {
+                        if($opened_par == 0)
+                        {
+                            break;
+                        }
+                    }
+                }
+
+                if($this->is_user_defined_parameter(array_slice($this->tokens, $i + 2, $j - 2), $i + 2))
                 {
                     $this->tokens[$i]->is_user_defined = true;
                 }
 
-                if (in_array($this->tokens[$i + 2]->orig_str, Sources::$user_defined_functions))
-                {
-                    $this->tokens[$i]->is_user_defined = true;
-                }
 
-
-                //Если переменной присваевается значение другой юзер-дефайнд переменной
-                if ($this->tokens[$i + 2]->is_var && $this->tokens[$i + 2]->is_user_defined)
-                {
-                    $this->tokens[$i]->is_user_defined = true;
-                }
             }
         }
     }
 
     public function check_file_write_function_call($function_token, $arguments)
     {
-        //Тип опасности. Нужен, чтобы вывести соответствующее предупреждение
         $type = 0;
 
-        //В этом списке хранятся массивы формата имя функции => (кол-во аргументов, аргумент для записи в файл)
         $function_pattern = VulnFunctions::$file_write_functions[$function_token->orig_str];
 
         //Ноль - указатель на переменное число параметров функции
@@ -785,13 +713,6 @@ class Analyzer
                 || in_array($arguments[$vuln_arg_number][0]->orig_str, Sources::$user_defined))
             {
                 $type = FILE_FUNC_CALL_WITH_UDV;
-                $to_return = true;
-            }
-            else
-            {
-                //В любом случае отмечаем это как признак
-                $type = FILE_FUNC_CALL;
-                $to_return = true;
             }
         }
 
@@ -811,7 +732,6 @@ class Analyzer
             if($is_shell)
             {
                 $type = FILE_FUNC_CALL_WITH_UDV;
-                $to_return = true;
             }
         }
 
@@ -823,45 +743,40 @@ class Analyzer
             if(in_array($arguments[$vuln_arg_number][0]->orig_str, Sources::$user_defined_functions))
             {
                 $type = FILE_FUNC_CALL_WITH_UDF;
-                $to_return = true;
             }
             //Если преобразующая функция
             if(in_array($arguments[$vuln_arg_number][0]->orig_str, VulnFunctions::$coding_decoding))
             {
                 $type = FILE_FUNC_CALL_WITH_UDF;
-                $to_return = true;
             }
             else
             {
                 //В любом случае отмечаем это как признак, даже если любая другая функция
                 $type = FILE_FUNC_CALL;
-                $to_return = true;
             }
         }
         else
         {
             //В любом случае отмечаем это как признак, даже если аргумент - не вызов функции
             $type = FILE_FUNC_CALL;
-            //echo "PVF call in line: " . $function_token->str_num . "<br>";
-            $to_return = true;
         }
 
         //формируем признак
-        if($type != 0) {
+        if($type != 0)
+        {
             $sign = new ShellSign($function_token, $arguments, $vuln_arg_number, $type);
 
-            //и записываем
             $this->reporter->add_sign($sign);
+
+            return true;
         }
 
-        return $to_return;
+        return false;
     }
 
     public function check_file_read_function_call($function_token, $arguments)
     {
-        //Тип опасности. Нужен, чтобы вывести соответствующее предупреждение
         $type = 0;
-        $to_return = false;
 
         //В этом списке хранятся массивы формата имя функции => (кол-во аргументов, имя файла)
         $function_pattern = VulnFunctions::$file_read_functions[$function_token->orig_str];
@@ -888,18 +803,144 @@ class Analyzer
                 || in_array($arguments[$filename_arg_number][0]->orig_str, Sources::$user_defined))
             {
                 $type = FILE_READ_CALL_WITH_UDV;
-                $to_return = true;
             }
         }
 
         if($type != 0) {
             $sign = new ShellSign($function_token, $arguments, $filename_arg_number, $type);
 
-            //и записываем
+            $this->reporter->add_sign($sign);
+
+            return true;
+        }
+
+        return false;
+
+    }
+
+    public function check_ini_set($function_token, $arguments)
+    {
+        $type = 0;
+        $setting_name = $arguments[1];
+
+        if(in_array($setting_name, VulnFunctions::$ini_set_settings))
+        {
+            $type = 101;
+            $sign = new ShellSign($function_token, $arguments, 0, $type);
             $this->reporter->add_sign($sign);
         }
 
-        return $to_return;
+        return $type == true;
+    }
 
+
+    public function is_user_defined_parameter($tokens, $start_pos)
+    {
+        for($i = 0; $i < count($tokens); ++$i)
+        {
+            //Если встречается переменная и она от пользователя
+            if($tokens[$i]->is_var && $tokens[$i]->is_user_defined || in_array($tokens[$i]->id, Sources::$user_defined))
+            {
+                return true;
+            }
+
+            //Если встречается вызов функции
+            elseif($tokens[$i]->id == T_STRING && isset($tokens[$i + 1]) && $tokens[$i + 1]->name == T_PAR_OPEN)
+            {
+                //и она от пользователя
+                if(in_array($tokens[$i + 1]->id, Sources::$user_defined_functions) || in_array($tokens[$i + 1]->id, VulnFunctions::$coding_decoding))
+                {
+                    return true;
+                }
+
+                $args = $this->get_function_parameters($i + $start_pos);
+
+                if( $args == array())
+                {
+                    return -1;
+                }
+
+
+                foreach($args as $arg)
+                {
+                    if($this->is_user_defined_parameter($arg, $i + $start_pos + 2))
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public function get_function_parameters($i)
+    {
+        $opened_par = 1;
+
+        $offset = 2;
+
+        $args = array();
+
+        $arg_num = 1;
+
+        $args[$arg_num] = array();
+
+        while ($opened_par != 0)
+        {
+            if (!isset($this->tokens[$i + $offset]))
+            {
+                echo "Invalid syntax in string: " . $this->tokens[$i]->str_num . "<br>";
+                break;
+            }
+            if ($this->tokens[$i + $offset]->name == "T_PAR_OPEN")
+            {
+                $args[$arg_num][] = $this->tokens[$i + $offset];
+                ++$opened_par;
+            }
+            elseif ($this->tokens[$i + $offset]->name == "T_PAR_CLOSE")
+            {
+                if ($opened_par != 1)
+                {
+                    $args[$arg_num][] = $this->tokens[$i + $offset];
+                }
+                --$opened_par;
+            }
+            elseif ($this->tokens[$i + $offset]->name == "T_COMMA" && $opened_par == 1)
+            {
+                ++$arg_num;
+                $args[$arg_num] = array();
+            }
+            else
+            {
+                $args[$arg_num][] = $this->tokens[$i + $offset];
+            }
+
+            ++$offset;
+        }
+
+        return $args;
+    }
+
+    public function get_function_parameters_list($function_name, $type)
+    {
+        $function_pattern = VulnFunctions::$$type[$function_name];
+
+        // Ноль - указатель на переменное число параметров функции
+        if($function_pattern[1] != 0)
+        {
+            //Если их конечнное число, то уязвимый параметр указан по индексу 1
+            $vuln_arg_number = $function_pattern[1];
+        }
+        else
+        {
+            //Если их переменное число и указан 0 - значит уязвимый - предпоследний
+            if($function_pattern[0] == 0)
+            {
+                $vuln_arg_number = 0;
+            }
+        }
+
+        return $vuln_arg_number;
     }
 }

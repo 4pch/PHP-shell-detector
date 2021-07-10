@@ -1,7 +1,5 @@
 <?php
 
-//include 'ShellSign.php';
-
 /*
  * Содержит в себе обнаруженные в файле признаки шелла и
  * выводит их в нормальном виде
@@ -38,35 +36,23 @@ class Reporter
     public function display_sign(ShellSign $sign)
     {
         $display_string = "";
-        $display_string .= "Web shell sign detected in file: " . $this->filename . " ";
-        $display_string .= "with level: " . $sign->level . " ";
-        /*switch ($sign->type)
-        {
-            case STRING_LENGTH_MORE_MAX;
-            case STRING_LENGTH_MORE_INSANE;
-            case VARIABLE_CALL_AS_FUNCTION;
-            case CALLBACK_PARAMETER_FORGERY;
-            case CALLBACK_PARAMETER_SUSPICIOUS;
-            case UNWANTED_FUNCTION_CALL;
-            case EVAL_CALL;
-            case E_MODIFIER_IN_PCRE;
-            case DBMS_FUNCTIONS_CALL;
-            case FILE_UPLOADING;
-
-        }*/
+        $display_string .= "Web shell sign detected ";
 
         $display_string .= "in string: " . $sign->function->str_num . " ";
         $display_string .= "string content: " . $sign->function->orig_str . "(";
 
         if($sign->arguments != 0)
         {
-            foreach ($sign->arguments as $argument)
+            for($i = 1; $i <= count($sign->arguments); ++$i)
             {
-                foreach ($argument as $arg_token)
+                foreach ($sign->arguments[$i] as $arg_token)
                 {
                     $display_string .= $arg_token->orig_str;
                 }
-                $display_string .= ", ";
+                if($i < count($sign->arguments))
+                {
+                    $display_string .= ", ";
+                }
             }
         }
         $display_string .= ")";

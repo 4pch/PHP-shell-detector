@@ -81,7 +81,6 @@ class Filer
                 $for_return = true;
             }
 
-            //count of \t
             $tabulate_count = substr_count($line, "\t");
 
             if($tabulate_count > MAX_TAB_COUNT)

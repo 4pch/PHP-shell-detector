@@ -20,7 +20,6 @@ class Tokenizer
         //Открывающие теги <? заменяем на <?php, иначе неправильно разбивает на токены сам PHP
         $this->code = preg_replace("/<\?(?!php|=)/", "<?php ", $this->code);
 
-
         //До PHP 7 поддерживался синтаксис <script language="php">...</script>, нужно заменить его на нормальные теги
         $this->code = preg_replace("/<\s*script\s*language\s*=\s*\"php\"\s*>(.*)<\/\s*script\s*>/is", "<?php $1 ?>", $this->code);
 
@@ -31,6 +30,8 @@ class Tokenizer
         $this->add_close_tag();
 
         $this->prepare_tokens();
+
+        $this->transforme_variable_in_string_to_concatenation();
 
         $this->remove_multi_dollar_pattern();
 
@@ -58,15 +59,7 @@ class Tokenizer
 
         for ($i = 0; $i < $tokens_count; ++$i) {
             if (!is_array($this->tokens[$i])) {
-                //пытаемся определить строку
-                /*$offset = 0;
 
-                while(!is_array($tokens[$i + $offset]))
-                {
-                    ++$offset;
-                }*/
-
-                //$str_num = $tokens[$i + $offset][2];
                 $str_num = 0;
 
                 //пытаемся узнать ID типа токена
@@ -78,7 +71,7 @@ class Tokenizer
                         echo "Undefined token type for token: " . $this->tokens[$i], " in line: " . $str_num . "<br>";
                     }
                 } catch (Exception $e) {
-                    echo 'Выброшено исключение: ', $e->getMessage(), "<br>";
+                    echo 'Исключение: ', $e->getMessage(), "<br>";
                     die();
                 }
             }
@@ -142,10 +135,6 @@ class Tokenizer
                 while ( $this->tokens[$i + $find_closing]->name != "T_BACKTICK") {
                     ++$find_closing;
 
-                    /*if(!isset($this->tokens[$i + $find_closing]))
-                    {
-                        return false;
-                    }*/
                 }
 
                 //Нужно взять с нулевого по $i - 1 (тк $i это символ ковычки), значит
@@ -178,7 +167,6 @@ class Tokenizer
                         ++$find_last;
                     }
 
-                    //check indexes
                     $concat_part = array_slice($this->tokens, $i + 2, $i + 2 + $find_last + 1 - $i - 3 + 1);
 
                     $right_string = reverse_concatenation($concat_part);
@@ -241,8 +229,6 @@ class Tokenizer
                 //Удаляем первую и последнюю скобки
                 $for_removing[] = $open_curly;
                 $for_removing[] = $close_curly;
-
-
             }
 
         }
@@ -252,6 +238,77 @@ class Tokenizer
         }
 
         $this->tokens = array_values($this->tokens);
+    }
+
+    /*
+     * Преобразует использование переменных внутри строки в конкатенацию
+     */
+    public function transforme_variable_in_string_to_concatenation()
+    {
+        $tokens_count = count($this->tokens);
+
+        $vars = array();
+
+        $for_removing = array();
+
+        for ($i = 0; $i < count($this->tokens); ++$i)
+        {
+            if($this->tokens[$i]->id == T_DOUBLE_QUOTES)
+            {
+                $for_removing[] = $i;
+                ++$i;
+
+                //До закрывающих ковычек
+                while($this->tokens[$i + 1]->id != T_DOUBLE_QUOTES)
+                {
+                    if($this->tokens[$i]->id == T_CURLY_OPEN)
+                    {
+                        $for_removing[] = $i;
+                        ++$i;
+
+                        while($this->tokens[$i]->id != T_CURLY_PAR_CLOSE)
+                        {
+                            ++$i;
+                        }
+
+                        $for_removing[] = $i;
+
+                        if($this->tokens[$i + 1]->id == T_DOUBLE_QUOTES)
+                        {
+                            break;
+                        }
+
+                    }
+
+                    $token = new Token(array(T_CONCAT_OP, ".", 0));
+                    $this->insert_one_token($i, $token);
+                    $i += 2;
+                }
+
+                ++$i;
+
+                $for_removing[] = $i;
+
+                ++$i;
+
+            }
+        }
+
+        foreach ($for_removing as $index)
+        {
+            unset($this->tokens[$index]);
+        }
+
+        $this->tokens = array_values($this->tokens);
+
+
+    }
+
+    public function insert_one_token($place, $token)
+    {
+        $after = array_slice($this->tokens, $place + 1);
+
+        $this->tokens = array_merge(array_slice($this->tokens, 0, $place + 1), array($token), $after);
     }
 
     /*
@@ -280,11 +337,8 @@ class Tokenizer
 
                 $arraing_index = 1;
 
-                $array_index = $i;
-
                 $opened_braces = 1;
 
-                //for looking forward on the tokens array
                 $offset = 2;
 
                 while ($opened_braces != 0) {
@@ -295,7 +349,7 @@ class Tokenizer
                         }
                     } elseif ($this->tokens[$i + $offset]->orig_str == "]") {
                         $opened_braces -= 1;
-                        $this->tokens[$i]->arr_indexes[] = $this->tokens[$i + $offset]->orig_str;//закрывающую скобку тоже записываем
+                        $this->tokens[$i]->arr_indexes[] = $this->tokens[$i + $offset]->orig_str; //закрывающую скобку тоже записываем
 
                         if (!in_array($i + $offset, $for_removing)) {
                             $for_removing[] = $i + $offset;
@@ -308,10 +362,6 @@ class Tokenizer
                         $opened_braces += 1;
 
                     }
-                    /*elseif (is_array($tokens[$i + $offset]))
-                    {
-                        $opened_braces -= 1;
-                    }*/
 
                     $this->tokens[$i]->arr_indexes[] = $this->tokens[$i + $offset]->orig_str;
                     if (!in_array($i + $offset, $for_removing)) {

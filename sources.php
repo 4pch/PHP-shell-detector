@@ -20,6 +20,7 @@ class Sources
 
     );
 
+    //Токены, которые можно использовать при конкатенации
     public static $string_constructing = array(
         "T_CONSTANT_ENCAPSED_STRING",
         "T_VARIABLE",
@@ -163,16 +164,15 @@ class VulnFunctions
 
     );
 
-    //(всего, колбек)
     public static $callbackable = array (
         "array_diff_uassoc" => array (0, 0),
         "array_diff_ukey" => array (0, 0),
         "array_intersect_uassoc" => array(0, 0),
         "array_intersect_ukey" => array(0, 0),
-        "array_udiff_uassoc" => array(0, 0), // not all
+        "array_udiff_uassoc" => array(0, 0),
         "array_udiff" => array(0, 0),
         "array_uintersect" => array(0, 0),
-        "array_uintersect_uassoc" => array(0, 0), // not all
+        "array_uintersect_uassoc" => array(0, 0),
         "array_walk_recursive" => array(3, 2),
         "call_user_func" => array(0, 1),
         "call_user_func_array" => array(2, 1),
@@ -189,7 +189,6 @@ class VulnFunctions
         "array_intersect_uassoc"=>array(0,0),
         "array_intersect_ukey"=>array(0,0),
         "register_tick_function "=>array(0,1),
-        ////////////////////////////////
         "fillter_var" => array(1,3),
         "yaml_parse" => array(0, 0),
         "uasort"=>array(2,2),
@@ -197,18 +196,24 @@ class VulnFunctions
         "register_shutdown_function"=>array(0, 1),
         "register_tick_function" => array(0, 1),
         "assert_options" => array(2,2),
-
-
+        "reflectionfunction" => array(1,1),
+        "createfunction" => array(4, 2),
+        "fetchall" => array(3, 2)
     );
 
     public static $db_functions = array (
         "mysqli_select_db" => array (1, 1),
         "mysql_connect" => array(2, 2),
         "mysqli_connect" => array(5,1),
+        "pg_connect" => array(2, 1)
     );
 
     public static $var_filters = array(
       "fillter_var" => array(1,3),
+    );
+
+    public static $ini_set_settings = array(
+        'allow_url_include',
     );
 
     public static $coding_decoding = array(
@@ -221,8 +226,8 @@ class VulnFunctions
         "gzuncompress",
         "imap_base64",
         "inflate_add",
-        "IntlChar::chr",
         "pack",
+        "str_rot13",
     );
 
     public static $suspicious = array(

@@ -29,10 +29,8 @@ define("T_BYTE_XOR", 1024);
 define("T_MULTIPLE", 1025);
 define("T_BYTE_INVERSE", 1026);
 
-
 class TokenTypes
 {
-    //Пропуск
     public static $IGNORE = array(
         T_WHITESPACE,
         T_DOC_COMMENT,

@@ -2,7 +2,6 @@
 
 include 'Filer.php';
 
-//todo: сокетное взаимодействие
 
 class DirectoryTraverser
 {
@@ -74,7 +73,6 @@ class DirectoryTraverser
             {
                 $ext = pathinfo($this->dirpath . "\\" . $entity_name,  PATHINFO_EXTENSION);
 
-                //todo: это нужно заменить и проверять еще txt и фотки
                 if($ext != "php")
                 {
                     $this->ignored_files[] = $this->dirpath . "\\" . $entity_name;
